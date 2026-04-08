@@ -80,3 +80,21 @@ src/main/java/csd214/bookstore/
 
 ## ⚖️ License
 Educational use for CSD214 - Sault College.
+
+
+## Lab 5 Reflection
+
+### 1. The Power of the Interface
+When I swapped the InMemoryListRepository for the InMemoryMapRepository, I did not have to change anything in my App.java or MobileService.java. This is because both repositories use the same IRepository interface. This is very helpful when working in a team because one person can change how the data is stored without breaking the work of others.
+
+### 2. Algorithmic Experience (O(n) vs. O(1))
+Implementing the HashMap felt much more efficient. With the ArrayList, I had to use a loop to find an item, which takes more time as the list grows (O(n)). But with the HashMap, the search is instant (O(1)) regardless of how many items there are. The Repository Pattern is great because I can improve the performance "under the hood" and the UI code stays simple.
+
+### 3. Production Stability vs. Development Speed
+In a real project, MySqlRepository is better because it is persistent. RAM-based storage is faster for testing, but all data is lost when the app stops. MySQL saves the data on the disk using Docker, so it is stable for a real-world store and the information is never lost.
+
+### 4. The Manual IoC Experience
+Moving all the "new" keywords to the Main.java felt a bit strange at first, but it makes the app much easier to manage. Everything is in one central location. I think Spring Boot does this "magic" automatically by looking for annotations like @Service and @Repository to connect the classes so I don't have to do it manually in the Main.
+
+### 5. Single Responsibility & Reusability
+Moving my logic to MobileService made my App.java much cleaner. Before, the UI was doing too many things. Now, if I want to make a mobile app or a website for this store in the future, I can just reuse the same MobileService without rewriting the business rules. It is like the "portable brain" of the application.

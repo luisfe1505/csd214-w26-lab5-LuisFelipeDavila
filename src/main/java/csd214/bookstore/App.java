@@ -5,33 +5,34 @@ import csd214.bookstore.entities.*;
 import csd214.bookstore.pojos.*;
 import csd214.bookstore.repositories.IRepository;
 import csd214.bookstore.services.BookstoreService;
+import csd214.bookstore.services.MobileService;
 
 import java.util.List;
 import java.util.Scanner;
 
 public class App {
+    // Database Infrastructure
     private IRepository<ProductEntity> repository;
-    private BookstoreService service; // The Chef
+    private MobileService mobileService;
+    private BookstoreService bookstoreService;
 
-    // INJECTION: App doesn't use the 'new' keyword for repos anymore
-    public App(IRepository<ProductEntity> repository) {
-        this.repository = repository;
-        this.service = new BookstoreService(repository);
-    }
     // UI & Logic
     private CashTill cashTill = new CashTill();
     private Scanner input = new Scanner(System.in);
 
+    public App(IRepository<ProductEntity> repository, MobileService mobileService, BookstoreService bookstoreService) {
+        this.repository = repository;
+        this.mobileService = mobileService;
+        this.bookstoreService = bookstoreService;
+    }
+
     public void shutdown() {
-        if (repository != null) {
-            repository.close();
-        }
     }
 
     public void run() {
-        System.out.println("Running on: " + repository.getDataSourceType());
-        // Use the new count() method from our in-class exercise
-        if (repository.count() == 0) {
+        // Optional: Populate only if empty
+        long count = repository.count();
+        if (count == 0) {
             populate();
         }
 
@@ -45,7 +46,6 @@ public class App {
             System.out.println(" 3. Delete Items");
             System.out.println(" 4. Sell item(s)");
             System.out.println(" 5. List items");
-            System.out.println(" 6. System Reset (Wipe DB)");
             System.out.println("99. Quit");
             System.out.println("***********************");
             System.out.print("Enter choice: ");
@@ -65,7 +65,6 @@ public class App {
                 case 3: deleteItem(); break;
                 case 4: sellItem(); break;
                 case 5: listAny(); break;
-                case 6: systemReset(); break; // New Bulk Delete Feature
                 case 99: System.out.println("Goodbye."); break;
                 default: System.out.println("Invalid choice.");
             }
@@ -73,7 +72,7 @@ public class App {
     }
 
     // ==========================================
-    // 1. ADD ITEMS
+    // 1. ADD ITEMS (POJO Input -> Entity Save)
     // ==========================================
     public void addItem() {
         System.out.println("\n--- Add an item ---");
@@ -83,6 +82,7 @@ public class App {
         System.out.println("4. Ticket");
         System.out.println("5. Pen");
         System.out.println("6. Notebook");
+        System.out.println("7. Iphone");
         System.out.println("99. Back");
 
         int choice = getIntInput();
@@ -92,13 +92,14 @@ public class App {
             switch(choice) {
                 case 1:
                     Book bPojo = new Book();
-                    bPojo.initialize(input);
+                    bPojo.initialize(input); // Use POJO for input
+                    // Map to Entity
                     BookEntity bEnt = new BookEntity();
                     bEnt.setTitle(bPojo.getTitle());
                     bEnt.setPrice(bPojo.getPrice());
                     bEnt.setCopies(bPojo.getCopies());
                     bEnt.setAuthor(bPojo.getAuthor());
-                    repository.save(bEnt); // Clean Repository Save
+                    repository.save(bEnt);
                     break;
                 case 2:
                     Magazine mPojo = new Magazine();
@@ -152,21 +153,37 @@ public class App {
                     nEnt.setName(nPojo.getPageCount() + "pg " + nPojo.getBrand() + " Notebook");
                     repository.save(nEnt);
                     break;
+                case 7:
+                    Iphone iPojo = new Iphone();
+                    iPojo.initialize(input); // Use POJO for input
+                    // Map to Entity
+                    IphoneEntity iEnt = new IphoneEntity(
+                            iPojo.getName(),
+                            iPojo.getPrice(),
+                            iPojo.getColor(),
+                            iPojo.getStorage(),
+                            iPojo.isHasMagSafe()
+                    );
+                    repository.save(iEnt);
+                    break;
                 default:
                     System.out.println("Invalid type.");
             }
-            System.out.println("Item saved to Database via Repository!");
+
+            System.out.println("Item saved to Database!");
 
         } catch (Exception e) {
-            System.out.println("Error saving item: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     // ==========================================
-    // 2. LIST ITEMS
+    // 2. LIST ITEMS (Query Entities)
     // ==========================================
     public void listAny() {
+        // Query database for all products
         List<ProductEntity> results = repository.findAll();
+
         System.out.println("\n--- Inventory List (" + results.size() + ") ---");
         for (int i = 0; i < results.size(); i++) {
             System.out.println("[" + i + "] " + results.get(i));
@@ -174,7 +191,7 @@ public class App {
     }
 
     // ==========================================
-    // 3. EDIT ITEMS
+    // 3. EDIT ITEMS (Entity -> POJO -> Entity)
     // ==========================================
     public void editItem() {
         List<ProductEntity> results = repository.findAll();
@@ -196,31 +213,45 @@ public class App {
             if (entity instanceof BookEntity) {
                 BookEntity be = (BookEntity) entity;
                 Book pojo = new Book(be.getAuthor(), be.getTitle(), be.getPrice(), be.getCopies());
-                pojo.edit(input);
-
+                pojo.edit(input); // User interaction
+                // Map Back
                 be.setAuthor(pojo.getAuthor());
                 be.setTitle(pojo.getTitle());
                 be.setPrice(pojo.getPrice());
                 be.setCopies(pojo.getCopies());
+                repository.save(be);
             }
             else if (entity instanceof PenEntity) {
                 PenEntity pe = (PenEntity) entity;
                 Pen pojo = new Pen(pe.getBrand(), pe.getPrice(), pe.getColor());
                 pojo.edit(input);
+                // Map Back
                 pe.setBrand(pojo.getBrand());
                 pe.setPrice(pojo.getPrice());
                 pe.setColor(pojo.getColor());
+                repository.save(pe);
             }
+            else if (entity instanceof IphoneEntity) {
+                IphoneEntity ie = (IphoneEntity) entity;
+                Iphone pojo = new Iphone(ie.getProductId(), ie.getName(), ie.getPrice(), ie.getColor(), ie.getStorage(), ie.isHasMagSafe());
+                pojo.edit(input); // User interaction
+                // Map Back
+                ie.setName(pojo.getName());
+                ie.setPrice(pojo.getPrice());
+                ie.setColor(pojo.getColor());
+                ie.setStorage(pojo.getStorage());
+                ie.setHasMagSafe(pojo.isHasMagSafe());
+                repository.save(ie);
+            }
+            // ... (Other types would follow similar pattern) ...
             else {
                 System.out.println("Editing not fully implemented for this type in this demo.");
-                return;
             }
 
-            repository.save(entity); // Automatically performs UPDATE (Merge)
             System.out.println("Update successful.");
 
         } catch (Exception e) {
-            System.out.println("Error updating item.");
+            e.printStackTrace();
         }
     }
 
@@ -244,54 +275,38 @@ public class App {
     // ==========================================
     // 5. SELL ITEMS
     // ==========================================
-// Inside src/main/java/csd214/bookstore/App.java
-
     public void sellItem() {
-        // 1. Fetch current list to show the user
         List<ProductEntity> results = repository.findAll();
-        if (results.isEmpty()) {
-            System.out.println("Inventory is empty. Nothing to sell.");
-            return;
-        }
-
-        // 2. Display the list so the user can choose an index
         listAny();
-        System.out.print("Select index to sell: ");
+        System.out.println("Select index to sell:");
         int idx = getIntInput();
+        if (idx < 0 || idx >= results.size()) return;
 
-        // 3. Validate the choice
-        if (idx < 0 || idx >= results.size()) {
-            System.out.println("Invalid selection.");
-            return;
-        }
-
-        // 4. Get the Database ID of the selected item
         ProductEntity item = results.get(idx);
-        Long dbId = item.getId();
 
-        // 5. DELEGATION: Pass the ID to the Service (The Chef)
-        // The App doesn't care HOW the sale happens, it just tells the service to do it.
-        service.performSale(dbId);
-
-        // 6. Update the UI-side Cash Till
-        // We create a temporary SaleableItem wrapper to pass the price to the Till
-        cashTill.sellItem(new SaleableItem() {
-            @Override
-            public void sellItem() { /* Logic already handled by service */ }
-            @Override
-            public double getPrice() { return item.getPrice(); }
-        });
-
-        System.out.println("Transaction complete.");
-    }
-
-    // ==========================================
-    // 6. SYSTEM RESET (Bulk Delete Exercise)
-    // ==========================================
-    public void systemReset() {
-        System.out.println("\n--- Initiating System Reset ---");
-        int deletedCount = repository.deleteAll();
-        System.out.println("Success! " + deletedCount + " items were permanently destroyed.");
+        // Business Logic
+        if (item instanceof PublicationEntity) {
+            PublicationEntity pub = (PublicationEntity) item;
+            if (pub.getCopies() > 0) {
+                pub.setCopies(pub.getCopies() - 1);
+                System.out.println("Sold: " + pub.getTitle());
+                // Add to transient cash till
+                cashTill.sellItem(new SaleableItem() {
+                    public void sellItem() {}
+                    public double getPrice() { return pub.getPrice(); }
+                });
+                repository.save(pub);
+            } else {
+                System.out.println("Out of stock!");
+            }
+        } else {
+            System.out.println("Sold " + item.getName());
+            cashTill.sellItem(new SaleableItem() {
+                public void sellItem() {}
+                public double getPrice() { return item.getPrice(); }
+            });
+            repository.save(item);
+        }
     }
 
     // ==========================================
@@ -326,7 +341,6 @@ public class App {
             p.setName("Pen " + p.getBrand());
             repository.save(p);
         }
-        System.out.println("Database Ready.");
     }
 
     private int getIntInput() {
